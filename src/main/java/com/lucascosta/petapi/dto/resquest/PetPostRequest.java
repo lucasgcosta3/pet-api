@@ -1,6 +1,5 @@
-package com.lucascosta.petapi.dto;
+package com.lucascosta.petapi.dto.resquest;
 
-import com.lucascosta.petapi.domain.Address;
 import com.lucascosta.petapi.domain.PetGender;
 import com.lucascosta.petapi.domain.PetType;
 import jakarta.validation.constraints.NotBlank;

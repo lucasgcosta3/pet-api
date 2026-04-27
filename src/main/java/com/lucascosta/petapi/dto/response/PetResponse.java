@@ -1,6 +1,5 @@
-package com.lucascosta.petapi.dto;
+package com.lucascosta.petapi.dto.response;
 
-import com.lucascosta.petapi.domain.Address;
 import com.lucascosta.petapi.domain.PetGender;
 import com.lucascosta.petapi.domain.PetType;
 
@@ -12,7 +11,7 @@ public record PetResponse(
         String name,
         PetType type,
         PetGender gender,
-        Address address,
+        AddressResponse address,
         Integer age,
         Double weight,
         String breed,

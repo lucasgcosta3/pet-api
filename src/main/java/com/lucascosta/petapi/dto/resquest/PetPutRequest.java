@@ -1,6 +1,4 @@
-package com.lucascosta.petapi.dto;
-
-import java.time.LocalDate;
+package com.lucascosta.petapi.dto.resquest;
 
 public record PetPutRequest (
         String name,

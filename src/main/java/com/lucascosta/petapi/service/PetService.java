@@ -1,16 +1,19 @@
 package com.lucascosta.petapi.service;
 
 import com.lucascosta.petapi.domain.Pet;
-import com.lucascosta.petapi.dto.PetPostRequest;
-import com.lucascosta.petapi.dto.PetPutRequest;
-import com.lucascosta.petapi.dto.PetResponse;
+import com.lucascosta.petapi.dto.resquest.PetFilterRequest;
+import com.lucascosta.petapi.dto.resquest.PetPostRequest;
+import com.lucascosta.petapi.dto.resquest.PetPutRequest;
+import com.lucascosta.petapi.dto.response.PetResponse;
 import com.lucascosta.petapi.exception.PetNotFoundException;
 import com.lucascosta.petapi.mapper.AddressMapper;
 import com.lucascosta.petapi.mapper.PetMapper;
 import com.lucascosta.petapi.repository.PetRepository;
+import com.lucascosta.petapi.repository.specification.PetSpecification;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 
 import java.util.UUID;
@@ -52,7 +55,13 @@ public class PetService {
         repository.delete(petToDelete);
     }
 
-    public Page<PetResponse> findBy
+    public Page<PetResponse> search(PetFilterRequest request, Pageable pageable) {
+        Specification<Pet> spec = buildSpecification(request);
+
+        Page<Pet> pets = repository.findAll(spec, pageable);
+
+        return pets.map(mapper::toResponse);
+    }
 
     private Pet getPetByIdOrThrow(UUID id) {
         return repository.findById(id)
@@ -72,5 +81,28 @@ public class PetService {
         if (request.weight() != null) {
             pet.setWeight(request.weight());
         }
+    }
+
+    private Specification<Pet> buildSpecification(PetFilterRequest request) {
+
+        Specification<Pet> spec = PetSpecification.hasType(request.type());
+
+        if (request.name() != null && !request.name().trim().isEmpty()) {
+            spec = spec.and(PetSpecification.hasName(request.name().trim()));
+        }
+
+        if (request.breed() != null && !request.breed().trim().isEmpty()) {
+            spec = spec.and(PetSpecification.hasBreed(request.breed().trim()));
+        }
+
+        if (request.gender() != null) {
+            spec = spec.and(PetSpecification.hasGender(request.gender()));
+        }
+
+        if (request.weight() != null) {
+            spec = spec.and(PetSpecification.hasWeight(request.weight()));
+        }
+
+        return spec;
     }
 }
