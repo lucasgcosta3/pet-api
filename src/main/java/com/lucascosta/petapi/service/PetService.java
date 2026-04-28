@@ -1,10 +1,12 @@
 package com.lucascosta.petapi.service;
 
-import com.lucascosta.petapi.domain.Pet;
-import com.lucascosta.petapi.dto.resquest.PetFilterRequest;
-import com.lucascosta.petapi.dto.resquest.PetPostRequest;
-import com.lucascosta.petapi.dto.resquest.PetPutRequest;
+import com.lucascosta.petapi.domain.pet.Pet;
 import com.lucascosta.petapi.dto.response.PetResponse;
+import com.lucascosta.petapi.dto.request.AddressRequest;
+import com.lucascosta.petapi.dto.request.PetFilterRequest;
+import com.lucascosta.petapi.dto.request.PetPostRequest;
+import com.lucascosta.petapi.dto.request.PetPutRequest;
+import com.lucascosta.petapi.exception.BusinessException;
 import com.lucascosta.petapi.exception.PetNotFoundException;
 import com.lucascosta.petapi.mapper.AddressMapper;
 import com.lucascosta.petapi.mapper.PetMapper;
@@ -16,6 +18,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.util.UUID;
 
 @Service
@@ -24,17 +27,15 @@ public class PetService {
     private final PetRepository repository;
     private final PetMapper mapper;
     private final AddressMapper addressMapper;
+    private static final String NOT_INFORMED = "NOT INFORMED";
 
     public PetResponse create(PetPostRequest petPostRequest) {
-        var pet = mapper.toEntity(petPostRequest);
+        var request = normalize(petPostRequest);
+
+        var pet = mapper.toEntity(request);
         var savedPet = repository.save(pet);
 
         return mapper.toResponse(savedPet);
-    }
-
-    public Page<PetResponse> findAll(Pageable pageable) {
-        Page<Pet> page = repository.findAll(pageable);
-        return page.map(mapper::toResponse);
     }
 
     public PetResponse findById(UUID id) {
@@ -65,7 +66,7 @@ public class PetService {
 
     private Pet getPetByIdOrThrow(UUID id) {
         return repository.findById(id)
-                .orElseThrow(() -> new PetNotFoundException("Pet with id %s not found"));
+                .orElseThrow(() -> new PetNotFoundException(String.format("Pet with id %s not found", id)));
     }
 
     private void applyUpdates(Pet pet, PetPutRequest request) {
@@ -87,11 +88,11 @@ public class PetService {
 
         Specification<Pet> spec = PetSpecification.hasType(request.type());
 
-        if (request.name() != null && !request.name().trim().isEmpty()) {
+        if (hasText(request.name())) {
             spec = spec.and(PetSpecification.hasName(request.name().trim()));
         }
 
-        if (request.breed() != null && !request.breed().trim().isEmpty()) {
+        if (hasText(request.breed())) {
             spec = spec.and(PetSpecification.hasBreed(request.breed().trim()));
         }
 
@@ -103,6 +104,59 @@ public class PetService {
             spec = spec.and(PetSpecification.hasWeight(request.weight()));
         }
 
+        if (request.age() != null) {
+            spec = spec.and(PetSpecification.hasAge(request.age()));
+        }
+
+        if (request.city() != null) {
+            spec = spec.and(PetSpecification.hasCity(request.city()));
+        }
+
+        if (request.street() != null) {
+            spec = spec.and(PetSpecification.hasStreet(request.street()));
+        }
+
+        if (request.number() != null) {
+            spec = spec.and(PetSpecification.hasNumber(request.number()));
+        }
+
         return spec;
+    }
+
+    private boolean hasText(String value){
+        return value != null && !value.trim().isEmpty();
+    }
+
+    private PetPostRequest normalize(PetPostRequest request){
+        return new PetPostRequest(
+                defaultIfBlank(request.name()),
+                request.type(),
+                request.gender(),
+                normalizeAddress(request.address()),
+                validateAge(request.birthDate()),
+                request.weight(),
+                defaultIfBlank(request.breed())
+    );
+    }
+
+    private AddressRequest normalizeAddress(AddressRequest address){
+        return new AddressRequest(
+                defaultIfBlank(address.city()),
+                defaultIfBlank(address.street()),
+                address.number()
+        );
+    }
+
+    private String defaultIfBlank(String value){
+        return (value == null || value.isBlank())
+                ? NOT_INFORMED
+                : value;
+    }
+
+    private LocalDate validateAge(LocalDate birthDate){
+        if(birthDate.isBefore(LocalDate.now().minusYears(20))){
+            throw new BusinessException("Pet should not be older than 20");
+        }
+        return birthDate;
     }
 }

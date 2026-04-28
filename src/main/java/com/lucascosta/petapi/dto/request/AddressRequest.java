@@ -1,4 +1,4 @@
-package com.lucascosta.petapi.dto.resquest;
+package com.lucascosta.petapi.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
 

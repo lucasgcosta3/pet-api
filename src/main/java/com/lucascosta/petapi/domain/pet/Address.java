@@ -1,4 +1,4 @@
-package com.lucascosta.petapi.domain;
+package com.lucascosta.petapi.domain.pet;
 
 import jakarta.persistence.*;
 import lombok.*;

@@ -1,9 +1,9 @@
-package com.lucascosta.petapi.domain;
+package com.lucascosta.petapi.domain.pet;
 
-import com.fasterxml.jackson.databind.ser.std.EnumSerializer;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.Period;
@@ -34,7 +34,6 @@ public class Pet {
     @Column(nullable = false)
     private PetGender gender;
 
-    @Column(nullable = false)
     @Embedded
     private Address address;
 
@@ -42,7 +41,7 @@ public class Pet {
     private LocalDate birthDate;
 
     @Column(nullable = false)
-    private Double weight;
+    private BigDecimal weight;
 
     @Column(nullable = false)
     private String breed;
@@ -55,6 +54,6 @@ public class Pet {
     }
 
     public int getAge() {
-        return Period.between(this.birthDate, LocalDate.now()).getYears();
+        return Math.max(0, Period.between(this.birthDate, LocalDate.now()).getYears());
     }
 }

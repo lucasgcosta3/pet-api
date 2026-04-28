@@ -1,4 +1,4 @@
-package com.lucascosta.petapi.domain;
+package com.lucascosta.petapi.domain.pet;
 
 public enum PetType {
     DOG,

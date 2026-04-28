@@ -1,8 +1,9 @@
 package com.lucascosta.petapi.dto.response;
 
-import com.lucascosta.petapi.domain.PetGender;
-import com.lucascosta.petapi.domain.PetType;
+import com.lucascosta.petapi.domain.pet.PetGender;
+import com.lucascosta.petapi.domain.pet.PetType;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -13,7 +14,7 @@ public record PetResponse(
         PetGender gender,
         AddressResponse address,
         Integer age,
-        Double weight,
+        BigDecimal weight,
         String breed,
         LocalDateTime createdAt
 ){
