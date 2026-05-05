@@ -10,5 +10,6 @@
   "age": 3,
   "weight": 5.0,
   "breed": "Labrador",
-  "createdAt": "2024-01-15T10:30:00"
+  "createdAt": "2024-01-15T10:30:00",
+  "photoBase64": null
 }

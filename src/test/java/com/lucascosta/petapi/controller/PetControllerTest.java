@@ -223,7 +223,7 @@ class PetControllerTest {
     }
 
     private static Stream<Arguments> putPetBadRequestSource() {
-        var invalidFieldsErrors = List.of("must be less than or equal to 60");
+        var invalidFieldsErrors = List.of("Informe o nome e sobrenome do pet", "O peso máximo é 60 kg");
 
         return Stream.of(
                 Arguments.of("put-request-pet-invalid-fields-400.json", invalidFieldsErrors)
@@ -231,13 +231,14 @@ class PetControllerTest {
     }
 
     private static List<String> allRequiredErrors() {
-        var nameRequired = "the field 'name' is required";
-        var typeRequired = "the field 'type' is required";
-        var genderRequired = "the field 'gender' is required";
-        var birthDateRequired = "the field 'birthDate' is required";
-        var weightRequired = "the field 'weight' is required";
-        var breedRequired = "the field 'breed' is required";
+        var nameRequired = "O campo 'nome' é obrigatório";
+        var typeRequired = "O campo 'tipo' é obrigatório";
+        var genderRequired = "O campo 'gênero' é obrigatório";
+        var addressRequired = "O endereço é obrigatório";
+        var birthDateRequired = "O campo 'data de nascimento' é obrigatório";
+        var weightRequired = "O campo 'peso' é obrigatório";
+        var breedRequired = "O campo 'raça' é obrigatório";
 
-        return new ArrayList<>(List.of(nameRequired, typeRequired, genderRequired, birthDateRequired, weightRequired, breedRequired));
+        return new ArrayList<>(List.of(nameRequired, typeRequired, genderRequired, addressRequired, birthDateRequired, weightRequired, breedRequired));
     }
 }
