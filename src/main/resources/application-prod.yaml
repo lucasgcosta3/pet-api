@@ -1,9 +1,9 @@
 spring:
   datasource:
-    url: ${DATABASE_URL:jdbc:h2:mem:testdb}
-    driver-class-name: ${DB_DRIVER:org.h2.Driver}
-    username: ${DB_USERNAME:sa}
-    password: ${DB_PASSWORD:}
+    url: ${DATABASE_URL}
+    driver-class-name: ${DB_DRIVER:org.postgresql.Driver}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
 
   jpa:
     hibernate:
@@ -16,6 +16,10 @@ spring:
   docker:
     compose:
       enabled: false
+
+  sql:
+    init:
+      mode: never
 
   h2:
     console:
