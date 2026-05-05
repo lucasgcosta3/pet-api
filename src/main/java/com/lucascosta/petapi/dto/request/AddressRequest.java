@@ -5,11 +5,11 @@ import jakarta.validation.constraints.NotBlank;
 
 public record AddressRequest(
         @Schema(example = "Recife")
-        @NotBlank(message = "the field 'city' is required")
+        @NotBlank(message = "O campo 'cidade' é obrigatório")
         String city,
 
         @Schema(example = "Rua das Pernambucanas")
-        @NotBlank(message = "the field 'street' is required")
+        @NotBlank(message = "O campo 'rua' é obrigatório")
         String street,
 
         @Schema(example = "302")

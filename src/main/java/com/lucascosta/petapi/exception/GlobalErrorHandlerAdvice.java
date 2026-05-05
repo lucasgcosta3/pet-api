@@ -8,17 +8,17 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.time.LocalDateTime;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 @RestControllerAdvice
 public class GlobalErrorHandlerAdvice {
+
     private ResponseEntity<DefaultErrorMessage> buildError(
             HttpStatus status,
             String message,
             HttpServletRequest request
     ) {
-
         DefaultErrorMessage error = new DefaultErrorMessage(
                 status.value(),
                 status.getReasonPhrase(),
@@ -26,7 +26,6 @@ public class GlobalErrorHandlerAdvice {
                 request.getRequestURI(),
                 LocalDateTime.now()
         );
-
         return ResponseEntity.status(status).body(error);
     }
 
@@ -46,15 +45,31 @@ public class GlobalErrorHandlerAdvice {
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<Map<String, String>> handleValidationErrors(
-            MethodArgumentNotValidException ex
+    public ResponseEntity<ValidationErrorMessage> handleValidationErrors(
+            MethodArgumentNotValidException ex,
+            HttpServletRequest request
     ) {
-        Map<String, String> errors = new HashMap<>();
+        Map<String, String> fields = new LinkedHashMap<>();
 
         ex.getBindingResult().getFieldErrors().forEach(error ->
-                errors.put(error.getField(), error.getDefaultMessage())
+                fields.put(error.getField(), error.getDefaultMessage())
         );
-        return ResponseEntity.badRequest().body(errors);
+
+        int errorCount = fields.size();
+        String summary = errorCount == 1
+                ? "1 campo precisa de atenção"
+                : errorCount + " campos precisam de atenção";
+
+        ValidationErrorMessage error = new ValidationErrorMessage(
+                HttpStatus.BAD_REQUEST.value(),
+                HttpStatus.BAD_REQUEST.getReasonPhrase(),
+                summary,
+                request.getRequestURI(),
+                LocalDateTime.now(),
+                fields
+        );
+
+        return ResponseEntity.badRequest().body(error);
     }
 
     @ExceptionHandler(Exception.class)
@@ -64,7 +79,7 @@ public class GlobalErrorHandlerAdvice {
     ) {
         return buildError(
                 HttpStatus.INTERNAL_SERVER_ERROR,
-                "Unexpected internal error",
+                "Erro interno inesperado. Tente novamente mais tarde.",
                 request
         );
     }

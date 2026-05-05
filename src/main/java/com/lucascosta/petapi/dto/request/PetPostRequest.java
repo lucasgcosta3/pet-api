@@ -10,36 +10,36 @@ import java.time.LocalDate;
 
 public record PetPostRequest(
         @Schema(example = "Rex Silva")
-        @NotBlank(message = "the field 'name' is required")
-        @Pattern(regexp = "^[A-Za-zÀ-ÿ]+(?:\\s+[A-Za-zÀ-ÿ]+)+$", message = "the pet should have name and last name")
+        @NotBlank(message = "O campo 'nome' é obrigatório")
+        @Pattern(regexp = "^[A-Za-zÀ-ÿ]+(?:\\s+[A-Za-zÀ-ÿ]+)+$", message = "Informe o nome e sobrenome do pet")
         String name,
 
         @Schema(example = "DOG")
-        @NotNull(message = "the field 'type' is required")
+        @NotNull(message = "O campo 'tipo' é obrigatório")
         PetType type,
 
         @Schema(example = "MALE")
-        @NotNull(message = "the field 'gender' is required")
+        @NotNull(message = "O campo 'gênero' é obrigatório")
         PetGender gender,
 
         @Schema(description = "Endereço onde o pet foi encontrado")
-        @NotNull
+        @NotNull(message = "O endereço é obrigatório")
         AddressRequest address,
 
         @Schema(example = "2020-04-28")
-        @NotNull(message = "the field 'birthDate' is required")
-        @PastOrPresent
+        @NotNull(message = "O campo 'data de nascimento' é obrigatório")
+        @PastOrPresent(message = "A data de nascimento não pode ser no futuro")
         LocalDate birthDate,
 
         @Schema(example = "5.0")
-        @NotNull(message = "the field 'weight' is required")
-        @DecimalMin("0.5")
-        @DecimalMax("60")
+        @NotNull(message = "O campo 'peso' é obrigatório")
+        @DecimalMin(value = "0.5", message = "O peso mínimo é 0.5 kg")
+        @DecimalMax(value = "60", message = "O peso máximo é 60 kg")
         BigDecimal weight,
 
         @Schema(example = "Shitzu")
-        @NotBlank(message = "the field 'breed' is required")
-        @Pattern(regexp = "^[A-Za-zÀ-ÿ ]+$")
+        @NotBlank(message = "O campo 'raça' é obrigatório")
+        @Pattern(regexp = "^[A-Za-zÀ-ÿ ]+$", message = "A raça deve conter apenas letras")
         String breed,
 
         @Schema(description = "Base64 encoded photo string")

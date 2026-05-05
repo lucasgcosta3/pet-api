@@ -9,14 +9,14 @@ import java.math.BigDecimal;
 
 public record PetPutRequest (
         @Schema(example = "Rex Silva")
-        @Pattern(regexp = "^[A-Za-zÀ-ÿ]+(?:\\s+[A-Za-zÀ-ÿ]+)+$")
+        @Pattern(regexp = "^[A-Za-zÀ-ÿ]+(?:\\s+[A-Za-zÀ-ÿ]+)+$", message = "Informe o nome e sobrenome do pet")
         String name,
 
         AddressRequest address,
 
         @Schema(example = "5.0")
-        @DecimalMin("0.5")
-        @DecimalMax("60")
+        @DecimalMin(value = "0.5", message = "O peso mínimo é 0.5 kg")
+        @DecimalMax(value = "60", message = "O peso máximo é 60 kg")
         BigDecimal weight,
 
         @Schema(description = "Base64 encoded photo string")
