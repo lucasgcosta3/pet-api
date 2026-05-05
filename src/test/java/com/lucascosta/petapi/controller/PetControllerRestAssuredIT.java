@@ -25,13 +25,9 @@ class PetControllerRestAssuredIT {
     private static final UUID NOT_FOUND_ID = UUID.fromString("99999999-9999-9999-9999-999999999999");
 
     @Autowired
-    private PetUtils petUtils;
-    @Autowired
     private FileUtils fileUtils;
     @LocalServerPort
     private int port;
-    @Autowired
-    private PetRepository repository;
 
     @BeforeEach
     void setUrl() {

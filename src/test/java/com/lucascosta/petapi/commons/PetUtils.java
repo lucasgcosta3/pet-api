@@ -63,7 +63,7 @@ public class PetUtils {
         return new PetPostRequest(
                 "Rex Silva", PetType.DOG, PetGender.MALE,
                 new AddressRequest("Recife", "Rua das Flores", "123"),
-                LocalDate.of(2021, 6, 15), new BigDecimal("5.0"), "Labrador"
+                LocalDate.of(2021, 6, 15), new BigDecimal("5.0"), "Labrador", null
         );
     }
 
@@ -71,7 +71,7 @@ public class PetUtils {
         return new PetResponse(
                 PET_ID_1, "Rex Silva", PetType.DOG, PetGender.MALE,
                 new AddressResponse("Recife", "Rua das Flores", "123"),
-                3, new BigDecimal("5.0"), "Labrador", CREATED_AT
+                3, new BigDecimal("5.0"), "Labrador", CREATED_AT, null
         );
     }
 }

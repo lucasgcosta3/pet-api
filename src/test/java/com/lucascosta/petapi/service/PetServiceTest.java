@@ -44,8 +44,7 @@ class PetServiceTest {
     private PetMapper mapper;
     @Mock
     private AddressMapper addressMapper;
-    @Mock
-    private GoogleSheetsService sheetsService;
+
 
     @InjectMocks
     private PetUtils petUtils;
@@ -106,7 +105,7 @@ class PetServiceTest {
         var request = new PetPostRequest(
                 "Rex Silva", PetType.DOG, PetGender.MALE,
                 new AddressRequest("Recife", "Rua das Flores", "123"),
-                LocalDate.now().minusYears(21), new BigDecimal("5.0"), "Labrador"
+                LocalDate.now().minusYears(21), new BigDecimal("5.0"), "Labrador", null
         );
 
         Assertions.assertThatException()
@@ -121,7 +120,7 @@ class PetServiceTest {
         var request = new PetPostRequest(
                 "   ", PetType.DOG, PetGender.MALE,
                 new AddressRequest("Recife", "Rua das Flores", "123"),
-                LocalDate.now().minusYears(3), new BigDecimal("5.0"), "Labrador"
+                LocalDate.now().minusYears(3), new BigDecimal("5.0"), "Labrador", null
         );
 
         var petSaved = petUtils.newPetSaved();
@@ -131,7 +130,7 @@ class PetServiceTest {
         BDDMockito.when(repository.save(ArgumentMatchers.any())).thenReturn(petSaved);
         BDDMockito.when(mapper.toResponse(ArgumentMatchers.any())).thenReturn(
                 new PetResponse(petSaved.getId(), "NOT INFORMED", PetType.DOG, PetGender.MALE,
-                        petResponse.address(), 3, new BigDecimal("5.0"), "Labrador", petResponse.createdAt())
+                        petResponse.address(), 3, new BigDecimal("5.0"), "Labrador", petResponse.createdAt(), null)
         );
 
         var result = service.create(request);
@@ -146,7 +145,8 @@ class PetServiceTest {
         var updateRequest = new PetPutRequest(
                 "Rex Updated",
                 new AddressRequest("Olinda", "Rua Nova", "999"),
-                new BigDecimal("7.5")
+                new BigDecimal("7.5"),
+                null
         );
         var updatedAddress = Address.builder().city("Olinda").street("Rua Nova").number("999").build();
 
@@ -169,7 +169,7 @@ class PetServiceTest {
         var originalName = petToUpdate.getName();
         var originalWeight = petToUpdate.getWeight();
 
-        var updateRequest = new PetPutRequest(null, null, null);
+        var updateRequest = new PetPutRequest(null, null, null, null);
 
         BDDMockito.when(repository.findById(petToUpdate.getId())).thenReturn(Optional.of(petToUpdate));
         BDDMockito.when(repository.save(petToUpdate)).thenReturn(petToUpdate);
@@ -188,7 +188,7 @@ class PetServiceTest {
         BDDMockito.when(repository.findById(unknownId)).thenReturn(Optional.empty());
 
         Assertions.assertThatException()
-                .isThrownBy(() -> service.update(unknownId, new PetPutRequest(null, null, null)))
+                .isThrownBy(() -> service.update(unknownId, new PetPutRequest(null, null, null, null)))
                 .isInstanceOf(PetNotFoundException.class);
     }
 
