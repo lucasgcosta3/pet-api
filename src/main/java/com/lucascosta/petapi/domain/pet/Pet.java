@@ -46,6 +46,10 @@ public class Pet {
     @Column(nullable = false)
     private String breed;
 
+    @Lob
+    @Column(columnDefinition = "TEXT")
+    private String photoBase64;
+
     private LocalDateTime createdAt;
 
     @PrePersist

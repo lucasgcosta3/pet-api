@@ -13,6 +13,7 @@ import com.lucascosta.petapi.mapper.PetMapper;
 import com.lucascosta.petapi.repository.PetRepository;
 import com.lucascosta.petapi.repository.specification.PetSpecification;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -21,6 +22,7 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDate;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class PetService {
@@ -48,6 +50,7 @@ public class PetService {
         applyUpdates(petToUpdate, request);
 
         var petSaved = repository.save(petToUpdate);
+
         return mapper.toResponse(petSaved);
     }
 
@@ -82,11 +85,19 @@ public class PetService {
         if (request.weight() != null) {
             pet.setWeight(request.weight());
         }
+
+        if (request.photoBase64() != null) {
+            pet.setPhotoBase64(request.photoBase64());
+        }
     }
 
     private Specification<Pet> buildSpecification(PetFilterRequest request) {
 
-        Specification<Pet> spec = PetSpecification.hasType(request.type());
+        Specification<Pet> spec = Specification.where(null);
+
+        if (request.type() != null) {
+            spec = spec.and(PetSpecification.hasType(request.type()));
+        }
 
         if (hasText(request.name())) {
             spec = spec.and(PetSpecification.hasName(request.name().trim()));
@@ -135,7 +146,8 @@ public class PetService {
                 normalizeAddress(request.address()),
                 validateAge(request.birthDate()),
                 request.weight(),
-                defaultIfBlank(request.breed())
+                defaultIfBlank(request.breed()),
+                request.photoBase64()
     );
     }
 

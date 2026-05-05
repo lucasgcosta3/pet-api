@@ -18,3 +18,9 @@ spring:
   docker:
     compose:
       enabled: false
+
+google:
+  workspace:
+    credentials-file-path: "classpath:credentials.json"
+    sheets:
+      spreadsheet-id: "1JWMj6GHsVXOCDttZuOQqNe6JdmNtXo3PAEGzaSeMe4s"

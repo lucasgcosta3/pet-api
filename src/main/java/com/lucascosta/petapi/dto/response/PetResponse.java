@@ -16,6 +16,7 @@ public record PetResponse(
         Integer age,
         BigDecimal weight,
         String breed,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        String photoBase64
 ){
 }
