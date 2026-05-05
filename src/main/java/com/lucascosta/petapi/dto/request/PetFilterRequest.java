@@ -3,7 +3,6 @@ package com.lucascosta.petapi.dto.request;
 import com.lucascosta.petapi.domain.pet.PetGender;
 import com.lucascosta.petapi.domain.pet.PetType;
 import io.swagger.v3.oas.annotations.media.Schema;
-import jakarta.validation.constraints.NotNull;
 
 import java.math.BigDecimal;
 
