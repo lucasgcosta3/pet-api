@@ -2,6 +2,8 @@ const API_BASE = '/v1/pets';
 let currentPage = 0;
 let currentTotalPages = 0;
 let currentPhotoBase64 = null;
+const petCache = new Map();
+let activePetDetailRequest = 0;
 
 // ===== ROUTING SPA =====
 function handleRoute() {
@@ -71,6 +73,14 @@ async function fetchApi(url, options = {}) {
 
         if (!res.ok) {
             const err = await res.json().catch(() => ({}));
+
+            // Validation error: has a 'fields' map with per-field messages
+            if (err.fields && typeof err.fields === 'object') {
+                const validationError = new Error(err.message || 'Verifique os campos do formulário');
+                validationError.fields = err.fields;
+                throw validationError;
+            }
+
             throw new Error(err.message || `Erro ${res.status}`);
         }
 
@@ -80,6 +90,48 @@ async function fetchApi(url, options = {}) {
         showToast(e.message || 'Erro de conexão com o servidor', 'error');
         throw e;
     }
+}
+
+// ===== FORM FIELD ERROR HELPERS =====
+const FIELD_ID_MAP = {
+    'name': 'form-name',
+    'type': 'form-type',
+    'gender': 'form-gender',
+    'birthDate': 'form-birthdate',
+    'weight': 'form-weight',
+    'breed': 'form-breed',
+    'address.city': 'form-city',
+    'address.street': 'form-street',
+    'address.number': 'form-number',
+};
+
+function showFieldErrors(fields) {
+    clearFieldErrors();
+    Object.entries(fields).forEach(([field, message]) => {
+        const elementId = FIELD_ID_MAP[field];
+        const el = elementId ? document.getElementById(elementId) : null;
+        if (!el) return;
+
+        el.classList.add('field-error');
+
+        const hint = document.createElement('span');
+        hint.className = 'field-error-hint';
+        hint.textContent = message;
+        hint.dataset.errorFor = elementId;
+
+        el.parentNode.appendChild(hint);
+
+        // Scroll to first error
+        if (Object.keys(fields)[0] === field) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            el.focus();
+        }
+    });
+}
+
+function clearFieldErrors() {
+    document.querySelectorAll('.field-error').forEach(el => el.classList.remove('field-error'));
+    document.querySelectorAll('.field-error-hint').forEach(el => el.remove());
 }
 
 async function searchPets(page = 0) {
@@ -143,6 +195,7 @@ async function createPet(data) {
         method: 'POST',
         body: JSON.stringify(data)
     });
+    if (result?.id) petCache.set(String(result.id), result);
     showToast('Pet cadastrado com sucesso! 🎉', 'success');
     return result;
 }
@@ -152,12 +205,14 @@ async function updatePet(id, data) {
         method: 'PUT',
         body: JSON.stringify(data)
     });
+    if (result?.id) petCache.set(String(result.id), result);
     showToast('Pet atualizado com sucesso! ✏️', 'success');
     return result;
 }
 
 async function deletePet(id) {
     await fetchApi(`${API_BASE}/${id}`, { method: 'DELETE' });
+    petCache.delete(String(id));
     showToast('Pet removido com sucesso', 'success');
 }
 
@@ -165,6 +220,8 @@ async function deletePet(id) {
 function renderPets(pets) {
     const grid = document.getElementById('pets-grid');
     const empty = document.getElementById('pets-empty');
+
+    cachePets(pets);
 
     if (!pets.length) {
         grid.innerHTML = '';
@@ -174,7 +231,7 @@ function renderPets(pets) {
 
     empty.style.display = 'none';
     grid.innerHTML = pets.map((pet, i) => {
-        const cardBg = pet.type === 'CAT' ? '#FFEDD5' : '#DCF0FF';
+        const cardBg = '#FFF';
         const imgStyle = pet.photoBase64 ? `background-image: url(${pet.photoBase64}); background-size: cover; background-position: center;` : `background: ${cardBg};`;
         const icon = pet.photoBase64 ? '' : '<div style="opacity: 0.4; font-size: 3.5rem;">📷</div>';
         return `
@@ -236,47 +293,87 @@ function renderPagination() {
 
 // ===== MODALS & FORMS =====
 async function openPetDetail(id) {
+    const requestId = ++activePetDetailRequest;
+    const cachedPet = petCache.get(String(id));
+
+    if (cachedPet) {
+        renderPetDetail(cachedPet);
+        openModal();
+        refreshPetDetail(id, requestId);
+        return;
+    }
+
     try {
         const pet = await getPet(id);
-        document.getElementById('modal-pet-name').textContent = pet.name;
-        document.getElementById('modal-pet-location').textContent = `📍 ${pet.address?.city || 'Desconhecido'}`;
-
-        const modalHero = document.getElementById('modal-pet-icon');
-        const modalPlaceholder = document.getElementById('modal-pet-placeholder');
-        if (pet.photoBase64) {
-            modalHero.style.backgroundImage = `url(${pet.photoBase64})`;
-            modalHero.style.backgroundSize = 'cover';
-            modalHero.style.backgroundPosition = 'center';
-            if (modalPlaceholder) modalPlaceholder.style.display = 'none';
-        } else {
-            modalHero.style.backgroundImage = 'none';
-            modalHero.style.backgroundColor = pet.type === 'DOG' ? '#DCF0FF' : '#FFEDD5';
-            if (modalPlaceholder) modalPlaceholder.style.display = 'block';
-        }
-
-        document.getElementById('modal-pet-gender').textContent = pet.gender === 'MALE' ? 'Macho' : 'Fêmea';
-        document.getElementById('modal-pet-age').textContent = pet.age != null ? `${pet.age} Anos` : '-';
-        document.getElementById('modal-pet-breed').textContent = pet.breed || 'Desconhecida';
-
-        document.getElementById('modal-btn-edit').onclick = () => {
-            closeModal();
-            openEditForm(pet);
-        };
-
-        document.getElementById('modal-btn-delete').onclick = () => {
-            if(confirm('Tem certeza que deseja remover este pet?')) {
-                deletePet(id).then(() => {
-                    closeModal();
-                    searchPets(currentPage);
-                });
-            }
-        };
-
-        document.getElementById('pet-detail-modal').classList.add('active');
+        if (requestId !== activePetDetailRequest) return;
+        petCache.set(String(pet.id), pet);
+        renderPetDetail(pet);
+        openModal();
     } catch (e) { /* silent */ }
 }
 
+async function refreshPetDetail(id, requestId) {
+    try {
+        const pet = await getPet(id);
+        if (requestId !== activePetDetailRequest) return;
+        petCache.set(String(pet.id), pet);
+        renderPetDetail(pet);
+    } catch (e) { /* silent */ }
+}
+
+function renderPetDetail(pet) {
+    document.getElementById('modal-pet-name').textContent = pet.name;
+    document.getElementById('modal-pet-location').textContent = `📍 ${pet.address?.city || 'Desconhecido'}`;
+
+    renderModalHero(pet);
+
+    document.getElementById('modal-pet-gender').textContent = pet.gender === 'MALE' ? 'Macho' : 'Fêmea';
+    document.getElementById('modal-pet-age').textContent = pet.age != null ? `${pet.age} Anos` : '-';
+    document.getElementById('modal-pet-breed').textContent = pet.breed || 'Desconhecida';
+
+    document.getElementById('modal-btn-edit').onclick = () => {
+        closeModal();
+        openEditForm(pet);
+    };
+
+    document.getElementById('modal-btn-delete').onclick = () => {
+        if(confirm('Tem certeza que deseja remover este pet?')) {
+            deletePet(pet.id).then(() => {
+                petCache.delete(String(pet.id));
+                closeModal();
+                searchPets(currentPage);
+            });
+        }
+    };
+}
+
+function renderModalHero(pet) {
+    const modalHero = document.getElementById('modal-pet-icon');
+    const modalPlaceholder = document.getElementById('modal-pet-placeholder');
+
+    modalHero.dataset.petId = String(pet.id);
+    modalHero.style.backgroundImage = 'none';
+    modalHero.style.backgroundColor = pet.type === 'DOG' ? '#DCF0FF' : '#FFEDD5';
+    if (modalPlaceholder) modalPlaceholder.style.display = pet.photoBase64 ? 'none' : 'block';
+
+    if (!pet.photoBase64) return;
+
+    requestAnimationFrame(() => {
+        if (modalHero.dataset.petId !== String(pet.id)) return;
+        modalHero.style.backgroundImage = `url(${pet.photoBase64})`;
+        modalHero.style.backgroundSize = 'cover';
+        modalHero.style.backgroundPosition = 'center';
+    });
+}
+
+function openModal() {
+    document.body.classList.add('modal-open');
+    document.getElementById('pet-detail-modal').classList.add('active');
+}
+
 function closeModal() {
+    activePetDetailRequest++;
+    document.body.classList.remove('modal-open');
     document.getElementById('pet-detail-modal').classList.remove('active');
 }
 
@@ -313,6 +410,7 @@ function openEditForm(pet) {
 }
 
 function resetForm() {
+    clearFieldErrors();
     document.getElementById('pet-form').reset();
     document.getElementById('form-pet-id').value = '';
     document.querySelector('.register-header h2').textContent = 'Cadastre um Pet';
@@ -374,7 +472,9 @@ async function handleSubmit(e) {
         resetForm();
         window.location.hash = '#pets';
     } catch (e) {
-        // Error toast is already shown by fetchApi
+        // Toast is already shown by fetchApi
+        // If the error carries per-field details, highlight them in the form
+        if (e.fields) showFieldErrors(e.fields);
     } finally {
         btn.innerHTML = originalHtml;
         btn.style.pointerEvents = 'auto';
@@ -388,6 +488,12 @@ function showLoading(show) {
         document.getElementById('pets-grid').innerHTML = '';
         document.getElementById('pets-empty').style.display = 'none';
     }
+}
+
+function cachePets(pets) {
+    pets.forEach(pet => {
+        if (pet?.id) petCache.set(String(pet.id), pet);
+    });
 }
 
 function showToast(message, type = 'success') {
