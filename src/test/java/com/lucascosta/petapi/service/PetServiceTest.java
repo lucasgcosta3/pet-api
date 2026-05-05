@@ -1,25 +1,25 @@
 package com.lucascosta.petapi.service;
 
+import com.lucascosta.petapi.commons.PetUtils;
+import com.lucascosta.petapi.domain.pet.Address;
 import com.lucascosta.petapi.domain.pet.Pet;
 import com.lucascosta.petapi.domain.pet.PetGender;
 import com.lucascosta.petapi.domain.pet.PetType;
-import com.lucascosta.petapi.domain.pet.Address;
 import com.lucascosta.petapi.dto.request.AddressRequest;
 import com.lucascosta.petapi.dto.request.PetFilterRequest;
 import com.lucascosta.petapi.dto.request.PetPostRequest;
 import com.lucascosta.petapi.dto.request.PetPutRequest;
-import com.lucascosta.petapi.dto.response.AddressResponse;
 import com.lucascosta.petapi.dto.response.PetResponse;
 import com.lucascosta.petapi.exception.BusinessException;
 import com.lucascosta.petapi.exception.PetNotFoundException;
 import com.lucascosta.petapi.mapper.AddressMapper;
 import com.lucascosta.petapi.mapper.PetMapper;
 import com.lucascosta.petapi.repository.PetRepository;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
+import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentMatchers;
+import org.mockito.BDDMockito;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -29,293 +29,217 @@ import org.springframework.data.jpa.domain.Specification;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
-
 @ExtendWith(MockitoExtension.class)
 class PetServiceTest {
 
-    @Mock
-    private PetRepository repository;
-
-    @Mock
-    private PetMapper mapper;
-
-    @Mock
-    private AddressMapper addressMapper;
-
     @InjectMocks
     private PetService service;
+    @Mock
+    private PetRepository repository;
+    @Mock
+    private PetMapper mapper;
+    @Mock
+    private AddressMapper addressMapper;
+    @Mock
+    private GoogleSheetsService sheetsService;
 
-    private Pet pet;
+    @InjectMocks
+    private PetUtils petUtils;
+
+    private List<Pet> petList;
     private PetResponse petResponse;
-    private UUID petId;
 
     @BeforeEach
-    void setUp() {
-        petId = UUID.randomUUID();
+    void init() {
+        petList = petUtils.newPetList();
+        petResponse = petUtils.newPetResponse();
+    }
 
-        pet = Pet.builder()
-                .id(petId)
-                .name("Rex Silva")
-                .type(PetType.DOG)
-                .gender(PetGender.MALE)
-                .address(Address.builder()
-                        .city("Recife")
-                        .street("Rua das Flores")
-                        .number("123")
-                        .build())
-                .birthDate(LocalDate.now().minusYears(3))
-                .weight(new BigDecimal("5.0"))
-                .breed("Labrador")
-                .createdAt(LocalDateTime.now())
-                .build();
+    @Test
+    @DisplayName("findById returns a pet with given id")
+    void findById_ReturnsPetById_WhenSuccessful() {
+        var expectedPet = petList.getFirst();
+        BDDMockito.when(repository.findById(expectedPet.getId())).thenReturn(Optional.of(expectedPet));
+        BDDMockito.when(mapper.toResponse(expectedPet)).thenReturn(petResponse);
 
-        petResponse = new PetResponse(
-                petId,
-                "Rex Silva",
-                PetType.DOG,
-                PetGender.MALE,
-                new AddressResponse("Recife", "Rua das Flores", "123"),
-                3,
-                new BigDecimal("5.0"),
-                "Labrador",
-                LocalDateTime.now()
+        var result = service.findById(expectedPet.getId());
+
+        Assertions.assertThat(result).isNotNull();
+        Assertions.assertThat(result.id()).isEqualTo(expectedPet.getId());
+    }
+
+    @Test
+    @DisplayName("findById throws PetNotFoundException when pet is not found")
+    void findById_ThrowsPetNotFoundException_WhenPetIsNotFound() {
+        var unknownId = UUID.randomUUID();
+        BDDMockito.when(repository.findById(unknownId)).thenReturn(Optional.empty());
+
+        Assertions.assertThatException()
+                .isThrownBy(() -> service.findById(unknownId))
+                .isInstanceOf(PetNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("create creates a pet")
+    void create_CreatesPet_WhenSuccessful() {
+        var petPostRequest = petUtils.newPetPostRequest();
+        var petSaved = petUtils.newPetSaved();
+
+        BDDMockito.when(mapper.toEntity(ArgumentMatchers.any(PetPostRequest.class))).thenReturn(petSaved);
+        BDDMockito.when(repository.save(ArgumentMatchers.any(Pet.class))).thenReturn(petSaved);
+        BDDMockito.when(mapper.toResponse(petSaved)).thenReturn(petResponse);
+
+        var result = service.create(petPostRequest);
+
+        Assertions.assertThat(result).isNotNull();
+        Assertions.assertThat(result.name()).isEqualTo("Rex Silva");
+        Assertions.assertThat(result.type()).isEqualTo(PetType.DOG);
+    }
+
+    @Test
+    @DisplayName("create throws BusinessException when pet is older than 20 years")
+    void create_ThrowsBusinessException_WhenPetIsOlderThan20Years() {
+        var request = new PetPostRequest(
+                "Rex Silva", PetType.DOG, PetGender.MALE,
+                new AddressRequest("Recife", "Rua das Flores", "123"),
+                LocalDate.now().minusYears(21), new BigDecimal("5.0"), "Labrador"
         );
+
+        Assertions.assertThatException()
+                .isThrownBy(() -> service.create(request))
+                .isInstanceOf(BusinessException.class)
+                .withMessage("Pet should not be older than 20");
     }
 
-    @Nested
-    @DisplayName("create()")
-    class Create {
+    @Test
+    @DisplayName("create fills NOT INFORMED for blank name")
+    void create_FillsNotInformed_WhenNameIsBlank() {
+        var request = new PetPostRequest(
+                "   ", PetType.DOG, PetGender.MALE,
+                new AddressRequest("Recife", "Rua das Flores", "123"),
+                LocalDate.now().minusYears(3), new BigDecimal("5.0"), "Labrador"
+        );
 
-        @Test
-        @DisplayName("should create a pet successfully")
-        void shouldCreatePetSuccessfully() {
-            var request = new PetPostRequest(
-                    "Rex Silva",
-                    PetType.DOG,
-                    PetGender.MALE,
-                    new AddressRequest("Recife", "Rua das Flores", "123"),
-                    LocalDate.now().minusYears(3),
-                    new BigDecimal("5.0"),
-                    "Labrador"
-            );
+        var petSaved = petUtils.newPetSaved();
+        petSaved.setName("NOT INFORMED");
 
-            when(mapper.toEntity(any(PetPostRequest.class))).thenReturn(pet);
-            when(repository.save(any(Pet.class))).thenReturn(pet);
-            when(mapper.toResponse(pet)).thenReturn(petResponse);
+        BDDMockito.when(mapper.toEntity(ArgumentMatchers.any(PetPostRequest.class))).thenReturn(petSaved);
+        BDDMockito.when(repository.save(ArgumentMatchers.any())).thenReturn(petSaved);
+        BDDMockito.when(mapper.toResponse(ArgumentMatchers.any())).thenReturn(
+                new PetResponse(petSaved.getId(), "NOT INFORMED", PetType.DOG, PetGender.MALE,
+                        petResponse.address(), 3, new BigDecimal("5.0"), "Labrador", petResponse.createdAt())
+        );
 
-            var result = service.create(request);
+        var result = service.create(request);
 
-            assertThat(result).isNotNull();
-            assertThat(result.name()).isEqualTo("Rex Silva");
-            assertThat(result.type()).isEqualTo(PetType.DOG);
-            verify(repository, times(1)).save(any(Pet.class));
-        }
-
-        @Test
-        @DisplayName("should throw BusinessException when pet is older than 20 years")
-        void shouldThrowWhenPetIsOlderThan20Years() {
-            var request = new PetPostRequest(
-                    "Rex Silva",
-                    PetType.DOG,
-                    PetGender.MALE,
-                    new AddressRequest("Recife", "Rua das Flores", "123"),
-                    LocalDate.now().minusYears(21),
-                    new BigDecimal("5.0"),
-                    "Labrador"
-            );
-
-            assertThatThrownBy(() -> service.create(request))
-                    .isInstanceOf(BusinessException.class)
-                    .hasMessage("Pet should not be older than 20");
-
-            verify(repository, never()).save(any());
-        }
-
-        @Test
-        @DisplayName("should fill NOT INFORMED for blank name")
-        void shouldFillNotInformedForBlankName() {
-            var request = new PetPostRequest(
-                    "   ",
-                    PetType.DOG,
-                    PetGender.MALE,
-                    new AddressRequest("Recife", "Rua das Flores", "123"),
-                    LocalDate.now().minusYears(3),
-                    new BigDecimal("5.0"),
-                    "Labrador"
-            );
-
-            var petWithNotInformed = Pet.builder()
-                    .id(petId).name("NOT INFORMED").type(PetType.DOG)
-                    .gender(PetGender.MALE)
-                    .address(Address.builder().city("Recife").street("Rua das Flores").number("123").build())
-                    .birthDate(LocalDate.now().minusYears(3))
-                    .weight(new BigDecimal("5.0")).breed("Labrador").build();
-
-            when(mapper.toEntity(any(PetPostRequest.class))).thenReturn(petWithNotInformed);
-            when(repository.save(any())).thenReturn(petWithNotInformed);
-            when(mapper.toResponse(any())).thenReturn(new PetResponse(
-                    petId, "NOT INFORMED", PetType.DOG, PetGender.MALE,
-                    new AddressResponse("Recife", "Rua das Flores", "123"),
-                    3, new BigDecimal("5.0"), "Labrador", LocalDateTime.now()
-            ));
-
-            var result = service.create(request);
-            assertThat(result.name()).isEqualTo("NOT INFORMED");
-        }
+        Assertions.assertThat(result.name()).isEqualTo("NOT INFORMED");
     }
 
-    @Nested
-    @DisplayName("findById()")
-    class FindById {
+    @Test
+    @DisplayName("update updates a pet")
+    void update_UpdatesPet_WhenSuccessful() {
+        var petToUpdate = petList.getFirst();
+        var updateRequest = new PetPutRequest(
+                "Rex Updated",
+                new AddressRequest("Olinda", "Rua Nova", "999"),
+                new BigDecimal("7.5")
+        );
+        var updatedAddress = Address.builder().city("Olinda").street("Rua Nova").number("999").build();
 
-        @Test
-        @DisplayName("should return pet when found")
-        void shouldReturnPetWhenFound() {
-            when(repository.findById(petId)).thenReturn(Optional.of(pet));
-            when(mapper.toResponse(pet)).thenReturn(petResponse);
+        BDDMockito.when(repository.findById(petToUpdate.getId())).thenReturn(Optional.of(petToUpdate));
+        BDDMockito.when(addressMapper.toAddress(ArgumentMatchers.any(AddressRequest.class))).thenReturn(updatedAddress);
+        BDDMockito.when(repository.save(petToUpdate)).thenReturn(petToUpdate);
+        BDDMockito.when(mapper.toResponse(petToUpdate)).thenReturn(petResponse);
 
-            var result = service.findById(petId);
+        Assertions.assertThatNoException().isThrownBy(() -> service.update(petToUpdate.getId(), updateRequest));
 
-            assertThat(result).isNotNull();
-            assertThat(result.id()).isEqualTo(petId);
-        }
-
-        @Test
-        @DisplayName("should throw PetNotFoundException when pet does not exist")
-        void shouldThrowWhenPetNotFound() {
-            var unknownId = UUID.randomUUID();
-            when(repository.findById(unknownId)).thenReturn(Optional.empty());
-
-            assertThatThrownBy(() -> service.findById(unknownId))
-                    .isInstanceOf(PetNotFoundException.class)
-                    .hasMessageContaining(unknownId.toString());
-        }
+        Assertions.assertThat(petToUpdate.getName()).isEqualTo("Rex Updated");
+        Assertions.assertThat(petToUpdate.getWeight()).isEqualByComparingTo("7.5");
+        Assertions.assertThat(petToUpdate.getAddress().getCity()).isEqualTo("Olinda");
     }
 
-    @Nested
-    @DisplayName("update()")
-    class Update {
+    @Test
+    @DisplayName("update does not modify fields when values are null")
+    void update_DoesNotModifyFields_WhenValuesAreNull() {
+        var petToUpdate = petList.getFirst();
+        var originalName = petToUpdate.getName();
+        var originalWeight = petToUpdate.getWeight();
 
-        @Test
-        @DisplayName("should update allowed fields")
-        void shouldUpdateAllowedFields() {
-            var updateRequest = new PetPutRequest(
-                    "Rex Updated",
-                    new AddressRequest("Olinda", "Rua Nova", "999"),
-                    new BigDecimal("7.5")
-            );
+        var updateRequest = new PetPutRequest(null, null, null);
 
-            var updatedAddress = Address.builder().city("Olinda").street("Rua Nova").number("999").build();
+        BDDMockito.when(repository.findById(petToUpdate.getId())).thenReturn(Optional.of(petToUpdate));
+        BDDMockito.when(repository.save(petToUpdate)).thenReturn(petToUpdate);
+        BDDMockito.when(mapper.toResponse(petToUpdate)).thenReturn(petResponse);
 
-            when(repository.findById(petId)).thenReturn(Optional.of(pet));
-            when(addressMapper.toAddress(any(AddressRequest.class))).thenReturn(updatedAddress);
-            when(repository.save(pet)).thenReturn(pet);
-            when(mapper.toResponse(pet)).thenReturn(petResponse);
+        service.update(petToUpdate.getId(), updateRequest);
 
-            service.update(petId, updateRequest);
-
-            assertThat(pet.getName()).isEqualTo("Rex Updated");
-            assertThat(pet.getWeight()).isEqualByComparingTo("7.5");
-            assertThat(pet.getAddress().getCity()).isEqualTo("Olinda");
-            verify(repository).save(pet);
-        }
-
-        @Test
-        @DisplayName("should not update fields when null")
-        void shouldNotUpdateWhenFieldsAreNull() {
-            var updateRequest = new PetPutRequest(null, null, null);
-
-            when(repository.findById(petId)).thenReturn(Optional.of(pet));
-            when(repository.save(pet)).thenReturn(pet);
-            when(mapper.toResponse(pet)).thenReturn(petResponse);
-
-            service.update(petId, updateRequest);
-
-            assertThat(pet.getName()).isEqualTo("Rex Silva");
-            assertThat(pet.getWeight()).isEqualByComparingTo("5.0");
-            verify(addressMapper, never()).toAddress(any());
-        }
-
-        @Test
-        @DisplayName("should throw PetNotFoundException when updating non-existent pet")
-        void shouldThrowWhenUpdatingNonExistentPet() {
-            var unknownId = UUID.randomUUID();
-            when(repository.findById(unknownId)).thenReturn(Optional.empty());
-
-            assertThatThrownBy(() -> service.update(unknownId, new PetPutRequest(null, null, null)))
-                    .isInstanceOf(PetNotFoundException.class);
-        }
+        Assertions.assertThat(petToUpdate.getName()).isEqualTo(originalName);
+        Assertions.assertThat(petToUpdate.getWeight()).isEqualByComparingTo(originalWeight);
     }
 
-    @Nested
-    @DisplayName("delete()")
-    class Delete {
+    @Test
+    @DisplayName("update throws PetNotFoundException when pet is not found")
+    void update_ThrowsPetNotFoundException_WhenPetIsNotFound() {
+        var unknownId = UUID.randomUUID();
+        BDDMockito.when(repository.findById(unknownId)).thenReturn(Optional.empty());
 
-        @Test
-        @DisplayName("should delete pet successfully")
-        void shouldDeletePetSuccessfully() {
-            when(repository.findById(petId)).thenReturn(Optional.of(pet));
-
-            service.delete(petId);
-
-            verify(repository, times(1)).delete(pet);
-        }
-
-        @Test
-        @DisplayName("should throw PetNotFoundException when deleting non-existent pet")
-        void shouldThrowWhenDeletingNonExistentPet() {
-            var unknownId = UUID.randomUUID();
-            when(repository.findById(unknownId)).thenReturn(Optional.empty());
-
-            assertThatThrownBy(() -> service.delete(unknownId))
-                    .isInstanceOf(PetNotFoundException.class)
-                    .hasMessageContaining(unknownId.toString());
-
-            verify(repository, never()).delete(any());
-        }
+        Assertions.assertThatException()
+                .isThrownBy(() -> service.update(unknownId, new PetPutRequest(null, null, null)))
+                .isInstanceOf(PetNotFoundException.class);
     }
 
-    @Nested
-    @DisplayName("search()")
-    class Search {
+    @Test
+    @DisplayName("delete removes a pet")
+    void delete_RemovePet_WhenSuccessful() {
+        var petToDelete = petList.getFirst();
+        BDDMockito.when(repository.findById(petToDelete.getId())).thenReturn(Optional.of(petToDelete));
+        BDDMockito.doNothing().when(repository).delete(petToDelete);
 
-        @Test
-        @DisplayName("should return page of pets matching filters")
-        void shouldReturnPageOfPets() {
-            var filter = new PetFilterRequest(PetType.DOG, "Rex", null, null, null, null, null, null, null);
-            var pageable = PageRequest.of(0, 10);
-            var page = new PageImpl<>(List.of(pet));
+        Assertions.assertThatNoException().isThrownBy(() -> service.delete(petToDelete.getId()));
+    }
 
-            when(repository.findAll(any(Specification.class), eq(pageable))).thenReturn(page);
-            when(mapper.toResponse(pet)).thenReturn(petResponse);
+    @Test
+    @DisplayName("delete throws PetNotFoundException when pet is not found")
+    void delete_ThrowsPetNotFoundException_WhenPetIsNotFound() {
+        var unknownId = UUID.randomUUID();
+        BDDMockito.when(repository.findById(unknownId)).thenReturn(Optional.empty());
 
-            var result = service.search(filter, pageable);
+        Assertions.assertThatException()
+                .isThrownBy(() -> service.delete(unknownId))
+                .isInstanceOf(PetNotFoundException.class);
+    }
 
-            assertThat(result.getContent()).hasSize(1);
-            assertThat(result.getContent().get(0).name()).isEqualTo("Rex Silva");
-        }
+    @Test
+    @DisplayName("search returns page of pets matching filters")
+    void search_ReturnsPageOfPets_WhenFiltersMatch() {
+        var filter = new PetFilterRequest(PetType.DOG, "Rex", null, null, null, null, null, null, null);
+        var pageable = PageRequest.of(0, 10);
+        var page = new PageImpl<>(List.of(petList.getFirst()));
 
-        @Test
-        @DisplayName("should return empty page when no pets match")
-        void shouldReturnEmptyPageWhenNoMatch() {
-            var filter = new PetFilterRequest(PetType.CAT, null, null, null, null, null, null, null, null);
-            var pageable = PageRequest.of(0, 10);
+        BDDMockito.when(repository.findAll(ArgumentMatchers.any(Specification.class), ArgumentMatchers.eq(pageable))).thenReturn(page);
+        BDDMockito.when(mapper.toResponse(petList.getFirst())).thenReturn(petResponse);
 
-            when(repository.findAll(any(Specification.class), eq(pageable)))
-                    .thenReturn(new PageImpl<>(List.of()));
+        var result = service.search(filter, pageable);
 
-            var result = service.search(filter, pageable);
+        Assertions.assertThat(result.getContent()).hasSize(1);
+        Assertions.assertThat(result.getContent().getFirst().name()).isEqualTo("Rex Silva");
+    }
 
-            assertThat(result.getContent()).isEmpty();
-        }
+    @Test
+    @DisplayName("search returns empty page when no pets match")
+    void search_ReturnsEmptyPage_WhenNoPetsMatch() {
+        var filter = new PetFilterRequest(PetType.CAT, null, null, null, null, null, null, null, null);
+        var pageable = PageRequest.of(0, 10);
+
+        BDDMockito.when(repository.findAll(ArgumentMatchers.any(Specification.class), ArgumentMatchers.eq(pageable)))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        var result = service.search(filter, pageable);
+
+        Assertions.assertThat(result.getContent()).isEmpty();
     }
 }

@@ -1,251 +1,243 @@
 package com.lucascosta.petapi.controller;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.lucascosta.petapi.domain.pet.PetGender;
-import com.lucascosta.petapi.domain.pet.PetType;
-import com.lucascosta.petapi.dto.request.AddressRequest;
-import com.lucascosta.petapi.dto.request.PetPostRequest;
-import com.lucascosta.petapi.dto.request.PetPutRequest;
-import com.lucascosta.petapi.dto.response.AddressResponse;
+import com.lucascosta.petapi.commons.FileUtils;
+import com.lucascosta.petapi.commons.PetUtils;
 import com.lucascosta.petapi.dto.response.PetResponse;
 import com.lucascosta.petapi.exception.PetNotFoundException;
 import com.lucascosta.petapi.service.PetService;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
-import org.junit.jupiter.api.Test;
+import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.mockito.ArgumentMatchers;
+import org.mockito.BDDMockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration;
+import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.PageImpl;
+import com.lucascosta.petapi.exception.GlobalErrorHandlerAdvice;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
+import org.springframework.test.web.servlet.result.MockMvcResultHandlers;
+import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
 
-import java.math.BigDecimal;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Stream;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.*;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
-
-@WebMvcTest(PetController.class)
+@WebMvcTest(controllers = PetController.class, excludeAutoConfiguration = {SecurityAutoConfiguration.class})
+@Import({FileUtils.class, PetUtils.class, GlobalErrorHandlerAdvice.class})
 class PetControllerTest {
+
+    private static final String URL = "/v1/pets";
+    private static final UUID NOT_FOUND_ID = UUID.fromString("99999999-9999-9999-9999-999999999999");
 
     @Autowired
     private MockMvc mockMvc;
-
-    @Autowired
-    private ObjectMapper objectMapper;
-
-    @MockBean
+    @MockitoBean
     private PetService service;
+    @Autowired
+    private FileUtils fileUtils;
+    @Autowired
+    private PetUtils petUtils;
 
     private PetResponse petResponse;
     private UUID petId;
 
     @BeforeEach
-    void setUp() {
-        petId = UUID.randomUUID();
-        petResponse = new PetResponse(
-                petId,
-                "Rex Silva",
-                PetType.DOG,
-                PetGender.MALE,
-                new AddressResponse("Recife", "Rua das Flores", "123"),
-                3,
-                new BigDecimal("5.0"),
-                "Labrador",
-                LocalDateTime.now()
+    void init() {
+        petId = PetUtils.PET_ID_1;
+        petResponse = petUtils.newPetResponse();
+    }
+
+    @Test
+    @DisplayName("GET v1/pets returns a page with pets when type filter is provided")
+    void findAll_ReturnsPageOfPets_WhenTypeFilterIsProvided() throws Exception {
+        var page = new PageImpl<>(List.of(petResponse));
+        BDDMockito.when(service.search(ArgumentMatchers.any(), ArgumentMatchers.any(Pageable.class))).thenReturn(page);
+
+        mockMvc.perform(MockMvcRequestBuilders.get(URL).param("type", "DOG"))
+                .andDo(MockMvcResultHandlers.print())
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.content[0].name").value("Rex Silva"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.content[0].type").value("DOG"));
+    }
+
+    @Test
+    @DisplayName("GET v1/pets/{id} returns a pet with given id")
+    void findById_ReturnsPetById_WhenSuccessful() throws Exception {
+        var response = fileUtils.readResourceFile("pet/get-pet-by-id-200.json");
+        BDDMockito.when(service.findById(petId)).thenReturn(petResponse);
+
+        mockMvc.perform(MockMvcRequestBuilders.get(URL + "/{id}", petId))
+                .andDo(MockMvcResultHandlers.print())
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.content().json(response));
+    }
+
+    @Test
+    @DisplayName("GET v1/pets/{id} throws NotFound 404 when pet is not found")
+    void findById_ThrowsNotFound_WhenPetIsNotFound() throws Exception {
+        var response = fileUtils.readResourceFile("pet/get-pet-by-id-404.json");
+        BDDMockito.when(service.findById(NOT_FOUND_ID))
+                .thenThrow(new PetNotFoundException("Pet with id %s not found".formatted(NOT_FOUND_ID)));
+
+        mockMvc.perform(MockMvcRequestBuilders.get(URL + "/{id}", NOT_FOUND_ID))
+                .andDo(MockMvcResultHandlers.print())
+                .andExpect(MockMvcResultMatchers.status().isNotFound())
+                .andExpect(MockMvcResultMatchers.content().json(response));
+    }
+
+    @Test
+    @DisplayName("POST v1/pets creates a pet")
+    void save_CreatesPet_WhenSuccessful() throws Exception {
+        var request = fileUtils.readResourceFile("pet/post-request-pet-200.json");
+        var response = fileUtils.readResourceFile("pet/post-response-pet-201.json");
+
+        BDDMockito.when(service.create(ArgumentMatchers.any())).thenReturn(petResponse);
+
+        mockMvc.perform(MockMvcRequestBuilders
+                        .post(URL)
+                        .content(request)
+                        .contentType(MediaType.APPLICATION_JSON)
+                )
+                .andDo(MockMvcResultHandlers.print())
+                .andExpect(MockMvcResultMatchers.content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(MockMvcResultMatchers.status().isCreated())
+                .andExpect(MockMvcResultMatchers.content().json(response));
+    }
+
+    @Test
+    @DisplayName("PUT v1/pets/{id} updates a pet")
+    void update_UpdatesPet_WhenSuccessful() throws Exception {
+        var request = fileUtils.readResourceFile("pet/put-request-pet-200.json");
+        BDDMockito.when(service.update(ArgumentMatchers.eq(petId), ArgumentMatchers.any())).thenReturn(petResponse);
+
+        mockMvc.perform(MockMvcRequestBuilders
+                        .put(URL + "/{id}", petId)
+                        .content(request)
+                        .contentType(MediaType.APPLICATION_JSON)
+                )
+                .andDo(MockMvcResultHandlers.print())
+                .andExpect(MockMvcResultMatchers.status().isOk());
+    }
+
+    @Test
+    @DisplayName("PUT v1/pets/{id} throws NotFound when pet is not found")
+    void update_ThrowsNotFound_WhenPetIsNotFound() throws Exception {
+        var request = fileUtils.readResourceFile("pet/put-request-pet-404.json");
+        var response = fileUtils.readResourceFile("pet/put-pet-by-id-404.json");
+
+        BDDMockito.when(service.update(ArgumentMatchers.eq(NOT_FOUND_ID), ArgumentMatchers.any()))
+                .thenThrow(new PetNotFoundException("Pet with id %s not found".formatted(NOT_FOUND_ID)));
+
+        mockMvc.perform(MockMvcRequestBuilders
+                        .put(URL + "/{id}", NOT_FOUND_ID)
+                        .content(request)
+                        .contentType(MediaType.APPLICATION_JSON)
+                )
+                .andDo(MockMvcResultHandlers.print())
+                .andExpect(MockMvcResultMatchers.status().isNotFound())
+                .andExpect(MockMvcResultMatchers.content().json(response));
+    }
+
+    @Test
+    @DisplayName("DELETE v1/pets/{id} removes a pet")
+    void delete_RemovePet_WhenSuccessful() throws Exception {
+        BDDMockito.doNothing().when(service).delete(petId);
+
+        mockMvc.perform(MockMvcRequestBuilders.delete(URL + "/{id}", petId))
+                .andDo(MockMvcResultHandlers.print())
+                .andExpect(MockMvcResultMatchers.status().isNoContent());
+    }
+
+    @Test
+    @DisplayName("DELETE v1/pets/{id} throws NotFound when pet is not found")
+    void delete_ThrowsNotFound_WhenPetIsNotFound() throws Exception {
+        var response = fileUtils.readResourceFile("pet/delete-pet-by-id-404.json");
+
+        BDDMockito.doThrow(new PetNotFoundException("Pet with id %s not found".formatted(NOT_FOUND_ID)))
+                .when(service).delete(NOT_FOUND_ID);
+
+        mockMvc.perform(MockMvcRequestBuilders.delete(URL + "/{id}", NOT_FOUND_ID))
+                .andDo(MockMvcResultHandlers.print())
+                .andExpect(MockMvcResultMatchers.status().isNotFound())
+                .andExpect(MockMvcResultMatchers.content().json(response));
+    }
+
+    @ParameterizedTest
+    @MethodSource("postPetBadRequestSource")
+    @DisplayName("POST v1/pets returns bad request when fields are invalid")
+    void save_ReturnsBadRequest_WhenFieldsAreInvalid(String fileName, List<String> errors) throws Exception {
+        var request = fileUtils.readResourceFile("pet/%s".formatted(fileName));
+
+        var mvcResult = mockMvc.perform(MockMvcRequestBuilders
+                        .post(URL)
+                        .content(request)
+                        .contentType(MediaType.APPLICATION_JSON)
+                )
+                .andDo(MockMvcResultHandlers.print())
+                .andExpect(MockMvcResultMatchers.status().isBadRequest())
+                .andReturn();
+
+        var resolvedException = mvcResult.getResolvedException();
+
+        Assertions.assertThat(resolvedException).isNotNull();
+        Assertions.assertThat(resolvedException.getMessage()).contains(errors);
+    }
+
+    @ParameterizedTest
+    @MethodSource("putPetBadRequestSource")
+    @DisplayName("PUT v1/pets/{id} returns bad request when fields are invalid")
+    void update_ReturnsBadRequest_WhenFieldsAreInvalid(String fileName, List<String> errors) throws Exception {
+        var request = fileUtils.readResourceFile("pet/%s".formatted(fileName));
+
+        var mvcResult = mockMvc.perform(MockMvcRequestBuilders
+                        .put(URL + "/{id}", petId)
+                        .content(request)
+                        .contentType(MediaType.APPLICATION_JSON)
+                )
+                .andDo(MockMvcResultHandlers.print())
+                .andExpect(MockMvcResultMatchers.status().isBadRequest())
+                .andReturn();
+
+        var resolvedException = mvcResult.getResolvedException();
+
+        Assertions.assertThat(resolvedException).isNotNull();
+        Assertions.assertThat(resolvedException.getMessage()).contains(errors);
+    }
+
+    private static Stream<Arguments> postPetBadRequestSource() {
+        var allRequiredErrors = allRequiredErrors();
+
+        return Stream.of(
+                Arguments.of("post-request-pet-empty-fields-400.json", allRequiredErrors),
+                Arguments.of("post-request-pet-blank-fields-400.json", allRequiredErrors)
         );
     }
 
-    @Nested
-    @DisplayName("GET /v1/pets")
-    class FindAll {
+    private static Stream<Arguments> putPetBadRequestSource() {
+        var invalidFieldsErrors = List.of("must be less than or equal to 60");
 
-        @Test
-        @DisplayName("should return 200 with page of pets")
-        void shouldReturn200WithPets() throws Exception {
-            var page = new PageImpl<>(List.of(petResponse));
-            when(service.search(any(), any(Pageable.class))).thenReturn(page);
-
-            mockMvc.perform(get("/v1/pets")
-                            .param("type", "DOG")
-                            .contentType(MediaType.APPLICATION_JSON))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.content[0].name").value("Rex Silva"))
-                    .andExpect(jsonPath("$.content[0].type").value("DOG"));
-        }
+        return Stream.of(
+                Arguments.of("put-request-pet-invalid-fields-400.json", invalidFieldsErrors)
+        );
     }
 
-    @Nested
-    @DisplayName("GET /v1/pets/{id}")
-    class FindById {
+    private static List<String> allRequiredErrors() {
+        var nameRequired = "the field 'name' is required";
+        var typeRequired = "the field 'type' is required";
+        var genderRequired = "the field 'gender' is required";
+        var birthDateRequired = "the field 'birthDate' is required";
+        var weightRequired = "the field 'weight' is required";
+        var breedRequired = "the field 'breed' is required";
 
-        @Test
-        @DisplayName("should return 200 when pet exists")
-        void shouldReturn200WhenPetExists() throws Exception {
-            when(service.findById(petId)).thenReturn(petResponse);
-
-            mockMvc.perform(get("/v1/pets/{id}", petId))
-                    .andExpect(status().isOk())
-                    .andExpect(jsonPath("$.id").value(petId.toString()))
-                    .andExpect(jsonPath("$.name").value("Rex Silva"));
-        }
-
-        @Test
-        @DisplayName("should return 404 when pet does not exist")
-        void shouldReturn404WhenPetNotFound() throws Exception {
-            when(service.findById(any())).thenThrow(new PetNotFoundException("Pet not found"));
-
-            mockMvc.perform(get("/v1/pets/{id}", UUID.randomUUID()))
-                    .andExpect(status().isNotFound())
-                    .andExpect(jsonPath("$.status").value(404))
-                    .andExpect(jsonPath("$.message").value("Pet not found"));
-        }
-    }
-
-    @Nested
-    @DisplayName("POST /v1/pets")
-    class Create {
-
-        @Test
-        @DisplayName("should return 201 when pet is created")
-        void shouldReturn201WhenCreated() throws Exception {
-            var request = new PetPostRequest(
-                    "Rex Silva",
-                    PetType.DOG,
-                    PetGender.MALE,
-                    new AddressRequest("Recife", "Rua das Flores", "123"),
-                    LocalDate.now().minusYears(3),
-                    new BigDecimal("5.0"),
-                    "Labrador"
-            );
-
-            when(service.create(any())).thenReturn(petResponse);
-
-            mockMvc.perform(post("/v1/pets")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(request)))
-                    .andExpect(status().isCreated())
-                    .andExpect(jsonPath("$.name").value("Rex Silva"))
-                    .andExpect(jsonPath("$.type").value("DOG"));
-        }
-
-        @Test
-        @DisplayName("should return 400 when name is missing")
-        void shouldReturn400WhenNameIsMissing() throws Exception {
-            var request = new PetPostRequest(
-                    null,
-                    PetType.DOG,
-                    PetGender.MALE,
-                    new AddressRequest("Recife", "Rua das Flores", "123"),
-                    LocalDate.now().minusYears(3),
-                    new BigDecimal("5.0"),
-                    "Labrador"
-            );
-
-            mockMvc.perform(post("/v1/pets")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(request)))
-                    .andExpect(status().isBadRequest())
-                    .andExpect(jsonPath("$.name").exists());
-        }
-
-        @Test
-        @DisplayName("should return 400 when weight exceeds 60kg")
-        void shouldReturn400WhenWeightExceeds60kg() throws Exception {
-            var request = new PetPostRequest(
-                    "Rex Silva",
-                    PetType.DOG,
-                    PetGender.MALE,
-                    new AddressRequest("Recife", "Rua das Flores", "123"),
-                    LocalDate.now().minusYears(3),
-                    new BigDecimal("61.0"),
-                    "Labrador"
-            );
-
-            mockMvc.perform(post("/v1/pets")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(request)))
-                    .andExpect(status().isBadRequest());
-        }
-
-        @Test
-        @DisplayName("should return 400 when name has no last name")
-        void shouldReturn400WhenNameHasNoLastName() throws Exception {
-            var request = new PetPostRequest(
-                    "Rex",
-                    PetType.DOG,
-                    PetGender.MALE,
-                    new AddressRequest("Recife", "Rua das Flores", "123"),
-                    LocalDate.now().minusYears(3),
-                    new BigDecimal("5.0"),
-                    "Labrador"
-            );
-
-            mockMvc.perform(post("/v1/pets")
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(request)))
-                    .andExpect(status().isBadRequest());
-        }
-    }
-
-    @Nested
-    @DisplayName("PUT /v1/pets/{id}")
-    class Update {
-
-        @Test
-        @DisplayName("should return 200 when pet is updated")
-        void shouldReturn200WhenUpdated() throws Exception {
-            var request = new PetPutRequest("Rex Updated", null, new BigDecimal("7.0"));
-            when(service.update(eq(petId), any())).thenReturn(petResponse);
-
-            mockMvc.perform(put("/v1/pets/{id}", petId)
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(request)))
-                    .andExpect(status().isOk());
-        }
-
-        @Test
-        @DisplayName("should return 404 when pet to update does not exist")
-        void shouldReturn404WhenPetNotFound() throws Exception {
-            var request = new PetPutRequest("Rex Updated", null, null);
-            when(service.update(any(), any())).thenThrow(new PetNotFoundException("Pet not found"));
-
-            mockMvc.perform(put("/v1/pets/{id}", UUID.randomUUID())
-                            .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(request)))
-                    .andExpect(status().isNotFound());
-        }
-    }
-
-    @Nested
-    @DisplayName("DELETE /v1/pets/{id}")
-    class DeletePet {
-
-        @Test
-        @DisplayName("should return 204 when pet is deleted")
-        void shouldReturn204WhenDeleted() throws Exception {
-            doNothing().when(service).delete(petId);
-
-            mockMvc.perform(delete("/v1/pets/{id}", petId))
-                    .andExpect(status().isNoContent());
-        }
-
-        @Test
-        @DisplayName("should return 404 when pet to delete does not exist")
-        void shouldReturn404WhenPetNotFound() throws Exception {
-            doThrow(new PetNotFoundException("Pet not found")).when(service).delete(any());
-
-            mockMvc.perform(delete("/v1/pets/{id}", UUID.randomUUID()))
-                    .andExpect(status().isNotFound());
-        }
+        return new ArrayList<>(List.of(nameRequired, typeRequired, genderRequired, birthDateRequired, weightRequired, breedRequired));
     }
 }

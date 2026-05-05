@@ -1,0 +1,9 @@
+{
+  "name": "Rex Updated",
+  "address": {
+    "city": "Olinda",
+    "street": "Rua Nova",
+    "number": "999"
+  },
+  "weight": 7.5
+}

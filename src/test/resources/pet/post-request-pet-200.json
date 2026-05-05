@@ -1,0 +1,13 @@
+{
+  "name": "Rex Silva",
+  "type": "DOG",
+  "gender": "MALE",
+  "address": {
+    "city": "Recife",
+    "street": "Rua das Flores",
+    "number": "123"
+  },
+  "birthDate": "2021-06-15",
+  "weight": 5.0,
+  "breed": "Labrador"
+}
