@@ -79,10 +79,9 @@ h1, h2, h3, h4, h5, h6 {
     text-decoration: none; display: flex; align-items: center; gap: 8px;
 }
 .navbar-brand img {
-    height: 52px; border-radius: var(--radius-sm);
+    height: 80px; border-radius: var(--radius-sm);
     transition: transform 0.3s var(--bounce);
 }
-.navbar-brand:hover img { transform: scale(1.05) rotate(-2deg); }
 
 .navbar-links { display: flex; gap: 0.5rem; align-items: center; }
 .navbar-links a {
@@ -216,7 +215,6 @@ h1, h2, h3, h4, h5, h6 {
 .hero-image-wrapper::before {
     content: ''; position: absolute;
     width: 85%; height: 85%; border-radius: 50%;
-    background: radial-gradient(circle, var(--sky) 0%, transparent 70%);
     opacity: 0.15; filter: blur(40px);
     animation: pulse 4s ease-in-out infinite;
 }
