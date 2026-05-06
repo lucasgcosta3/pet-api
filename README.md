@@ -12,15 +12,12 @@ Este projeto utiliza as seguintes tecnologias:
 - **MapStruct** (para mapeamento de objetos)
 - **Lombok** (para reduzir código boilerplate)
 - **Swagger / OpenAPI** (para documentação da API)
-- **Google Workspace APIs** (integrações com Drive, Sheets e Docs)
 
 ## 📦 Funcionalidades
 
 - **Gerenciamento de Pets:** Criar, ler, atualizar e excluir registros de pets.
 - **Busca Avançada:** Busca de pets por tipo, raça, idade, peso, cidade, etc., com paginação.
 - **Formulários de Adoção:** Recuperar perguntas padronizadas para o processo de adoção.
-- **Integração com Google Workspace:**
-  - Exportação de registros de pets para o Google Sheets com sincronização bidirecional (Create, Update, Delete).
 
 ## 🛠️ Como Executar Localmente
 
@@ -28,7 +25,6 @@ Este projeto utiliza as seguintes tecnologias:
 - JDK 21
 - Maven
 - Docker e Docker Compose (opcional, para uso do PostgreSQL)
-- Credenciais do Google (arquivo `credentials.json` no diretório `src/main/resources` ou configurado via application.properties)
 
 ### Executando com H2 (Banco de dados em memória)
 Por padrão, a aplicação roda com o banco H2 em memória.
